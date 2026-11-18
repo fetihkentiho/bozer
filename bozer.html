@@ -6265,20 +6265,21 @@ tick();setInterval(tick,1000);
     <button type="button" class="modal-close" onClick="closeSinifRehberOgretmenModal()">×</button>
     <h2 class="modal-title">Sınıf Rehber Öğretmenleri Girişi</h2>
 
-    <div class="modal-field"><label for="sroSinifSelect">Sınıf Girişi</label><select id="sroSinifSelect"></select></div>
+    <div class="modal-field"><label for="sroSinifSelect">Sınıf Girişi</label><select id="sroSinifSelect" onChange="sroSinifDegisti()"></select></div>
     <div class="modal-field"><label for="sroOgretmenSelect">Öğretmen Girişi</label><select id="sroOgretmenSelect" onChange="sroOgretmenDegisti()"></select></div>
     <div class="modal-field"><label for="sroBrans">Branş Girişi</label><input type="text" id="sroBrans" placeholder="Branş"></div>
 
     <div class="modal-actions-single-row modal-actions-six">
       <button type="button" class="modal-btn primary" onClick="kaydetSinifRehberOgretmen()">Kaydet</button>
       <button type="button" class="modal-btn danger" onClick="silSinifRehberOgretmen()">Sil</button>
-      <button type="button" class="modal-btn secondary" onClick="alert('e-Okul Sınıf Rehber Öğretmen aktarımı.')">e-Okul</button>
+      <button type="button" class="modal-btn secondary" onClick="document.getElementById('sroPdfDosya').click()">Yükle</button>
       <button type="button" class="modal-btn" onClick="yeniKayitSinifRehberOgretmen()">Yeni</button>
       <button type="button" class="modal-btn pdf" onClick="rehberRaporu('sro','pdf')">PDF</button>
       <button type="button" class="modal-btn word" onClick="wordCalistir(function(){rehberRaporu('sro','pdf')}, this)">Word</button>
       <button type="button" class="modal-btn excel" onClick="rehberRaporu('sro','excel')">Excel</button>
     </div>
     <div style="margin-top:8px;"><button type="button" class="modal-btn danger" style="width:100%;" onClick="tumunuSil('sro')">Tümünü Sil</button></div>
+    <input type="file" id="sroPdfDosya" accept=".pdf,application/pdf" style="display:none" onChange="sroPdfYukle(event)">
     <div id="sroDurum" class="modal-status"></div>
 
     <div class="data-list-container">
@@ -8595,7 +8596,7 @@ tick();setInterval(tick,1000);
       return bas + '-' + (bas + 1);
     })();
     ekle({r1: 2, c1: 1, r2: 4, c2: 35, b: '', text: 'T.C.\nKONYA VALİLİĞİ\nKaratay / Fetihkent İmam Hatip Ortaokulu Müdürlüğü', font: 'PAL', size: 10, bold: true, h: 'center', v: 'top', wrap: true, pitch: 11});
-    ekle({r1: 5, c1: 1, r2: 5, c2: 35, b: '', text: ' ' + yil + '   ÖĞRENCİ DEVAM - DEVAMSIZLIK', font: 'PAL', size: 10, bold: true, h: 'center', v: 'top'});
+    ekle({r1: 5, c1: 1, r2: 5, c2: 35, b: '', text: ' ' + yil + '   ÖĞRENCİ DEVAMSIZLIK TABLOSU', font: 'PAL', size: 10, bold: true, h: 'center', v: 'top'});
     [[6, 'Adı Soyadı:', o.ad, 'Sınıfı / Şubesi:', o.sinif, null], [7, 'Toplam Devamsızlık:', o.toplam.toFixed(1), 'Numarası', /^\d+$/.test(o.no) ? Number(o.no) : o.no, '#,##0.0']].forEach(function(s){
       ekle({r1: s[0], c1: 2, r2: s[0], c2: 9, b: 'ltrb', text: s[1], font: 'PAL', size: 9, bold: true, h: 'right', v: 'bottom'});
       var deger = {r1: s[0], c1: 10, r2: s[0], c2: 25, b: 'ltrb', text: String(s[2]), font: 'PAL', size: 9, h: 'left', v: 'bottom'};
@@ -8755,19 +8756,20 @@ tick();setInterval(tick,1000);
       return [o];
     }
     var sinif = document.getElementById('dvSinifSec').value;
-    if(sinif === 'TUMU') return [];
+    /* "Tüm Sınıflar" seçiliyse tüm sınıfların raporu: önce sınıfa, sonra numaraya göre sıralı */
     return tumu.filter(function(x){ return dvSinifaGore(x, sinif) && x.kayitlar.length; }).sort(function(a, b){
-      return (parseInt(a.no, 10) || 0) - (parseInt(b.no, 10) || 0);
+      return String(a.sinif || '').localeCompare(String(b.sinif || ''), 'tr', {numeric: true}) ||
+             ((parseInt(a.no, 10) || 0) - (parseInt(b.no, 10) || 0));
     });
   }
   function dvCikti(tur){
     var durum = document.getElementById('dvDurum');
     var liste = dvRaporOgrencileri();
     if(!liste.length){
-      durum.textContent = dvKayitlar().length ? 'Öğrenci seçiniz (öğrenci seçmezseniz seçili sınıfın tüm raporları hazırlanır).' : 'Önce e-Okul düğmesiyle devamsızlık PDF veya Excel dosyasını yükleyin.';
+      durum.textContent = dvKayitlar().length ? 'Öğrenci seçiniz (öğrenci seçmezseniz seçili sınıfın veya "Tüm Sınıflar" seçiliyse tüm sınıfların raporları hazırlanır).' : 'Önce e-Okul düğmesiyle devamsızlık PDF veya Excel dosyasını yükleyin.';
       return;
     }
-    var dosya = rapDosyaAdi(liste.length > 1 ? 'Devamsizlik_Raporlari_' : 'Devamsizlik_Raporu_');
+    var dosya = rapDosyaAdi(liste.length > 1 ? 'Devamsizlik_Tablolari_' : 'Devamsizlik_Tablosu_');
     if(tur === 'excel'){
       if(typeof ExcelJS === 'undefined'){ durum.textContent = 'Excel oluşturulamadı (internet bağlantısını kontrol edin).'; return; }
       dvExcelOlustur(liste).then(function(buf){
@@ -8788,7 +8790,7 @@ tick();setInterval(tick,1000);
     var durum = document.getElementById('dvDurum');
     var liste = dvRaporOgrencileri();
     if(!liste.length){
-      durum.textContent = dvKayitlar().length ? 'Önce bir sınıf seçiniz (öğrenci seçmezseniz seçili sınıfın tüm öğrencileri ayrı ayrı kaydedilir).' : 'Önce e-Okul düğmesiyle devamsızlık PDF veya Excel dosyasını yükleyin.';
+      durum.textContent = dvKayitlar().length ? 'Kaydedilecek devamsızlık kaydı bulunamadı (öğrenci seçmezseniz seçili sınıfın veya "Tüm Sınıflar" seçiliyse tüm sınıfların öğrencileri ayrı ayrı kaydedilir).' : 'Önce e-Okul düğmesiyle devamsızlık PDF veya Excel dosyasını yükleyin.';
       return;
     }
     if(typeof pdfMake === 'undefined'){ durum.textContent = 'Rapor oluşturulamadı (internet bağlantısını kontrol edin).'; return; }
@@ -9898,12 +9900,29 @@ tick();setInterval(tick,1000);
     return sira.sort(function(a, b){ return a.ad.localeCompare(b.ad, 'tr'); });
   }
 
+  /* Kurul Komisyon Ekip Giriş kayıtları kaynak alınır: sorumlu kişiler ve görevleri otomatik güncellenir (elle eklenen başka kişiler korunur) */
+  function ksSenkron(){
+    var yeni = ksKurulVerisi();
+    if(!yeni.length) return 0;
+    var liste = ksKayitlar();
+    yeni.forEach(function(y){
+      var i = -1;
+      liste.forEach(function(o, j){ if(i < 0 && otgAnahtar(o.ad) === otgAnahtar(y.ad)) i = j; });
+      if(i >= 0){ liste[i].kurullar = y.kurullar; liste[i].unvan = y.unvan || liste[i].unvan; }
+      else liste.push(y);
+    });
+    liste.sort(function(a, b){ return String(a.ad).localeCompare(String(b.ad), 'tr'); });
+    ksListeYaz(liste);
+    return yeni.length;
+  }
+
   /* ---- Modal ---- */
   function openKsModal(){
+    var senk = ksSenkron();
     ksListeDoldur(null);
     ksYeni();
     var n = ksKayitlar().length;
-    document.getElementById('ksDurum').textContent = n ? '' : 'Önce "Kurul Komisyon Ekip Giriş" bölümünde Yükle düğmesiyle Excel dosyasını yükleyin, sonra burada e-Okul düğmesine basın.';
+    document.getElementById('ksDurum').textContent = n ? '' : 'Önce "Kurul Komisyon Ekip Giriş" bölümünde Yükle düğmesiyle Excel dosyasını yükleyin; sorumlular burada otomatik gelir.';
     document.getElementById('ksOverlay').classList.add('active');
   }
   function closeKsModal(){ document.getElementById('ksOverlay').classList.remove('active'); }
@@ -9953,8 +9972,13 @@ tick();setInterval(tick,1000);
       if(v === 'TUMU') document.getElementById('ksAd').value = 'Tüm sorumlular (' + ksKayitlar().length + ')';
       return;
     }
-    KS_SECILI = parseInt(v, 10);
-    ksEditorYaz(ksKayitlar()[KS_SECILI]);
+    var secili = ksKayitlar()[parseInt(v, 10)];
+    ksSenkron();
+    var idx = -1;
+    ksKayitlar().forEach(function(o, j){ if(idx < 0 && secili && otgAnahtar(o.ad) === otgAnahtar(secili.ad)) idx = j; });
+    KS_SECILI = idx;
+    ksListeDoldur(idx < 0 ? null : idx);
+    ksEditorYaz(idx < 0 ? null : ksKayitlar()[idx]);
   }
   function ksYeni(){
     KS_SECILI = null;
@@ -13263,27 +13287,149 @@ tick();setInterval(tick,1000);
   function closeSinifRehberOgretmenModal(){
     document.getElementById('sinifRehberOgretmenOverlay').classList.remove('active');
   }
+  /* Kaynak: "Kurul Komisyon Ekip Giriş" bölümündeki "Sınıf / Şube Rehber Öğretmenler Kurulu" listesi (kurulListesi) */
+  function sroKurulSatirlari(){
+    var liste = rapLoad('kurulListesi', []), kayit = null;
+    function n(x){ return String(x || '').replace(/\s*\n\s*/g, ' ').toLocaleLowerCase('tr').replace(/[^a-z0-9çğıöşü]/g, ''); }
+    liste.forEach(function(k){
+      var t = n(k && k.ad);
+      if(!kayit && t.indexOf('rehberöğretmenlerkurulu') > -1 && (t.indexOf('sınıf') > -1 || t.indexOf('şube') > -1)) kayit = k;
+    });
+    if(!kayit) return null;
+    var siniflar = rapLoad('sinifListesi', []);
+    var out = [];
+    (kayit.satirlar || []).forEach(function(r){
+      var ad = String(r[0] || '').trim();
+      if(!ad) return;
+      var sinif = '';
+      for(var i = 2; i < 5 && !sinif; i++){          /* önce Görevi/Sınıfı sütunu, sonra diğerleri */
+        var m = /(\d{1,2})\s*[\/\-\. ]?\s*([A-Za-zÇĞİÖŞÜçğıöşü])(?![A-Za-zÇĞİÖŞÜçğıöşü])/.exec(String(r[i] || ''));
+        if(m) sinif = m[1] + '/' + m[2].toLocaleUpperCase('tr');
+      }
+      if(sinif){
+        var es = siniflar.filter(function(x){ return x && x.ad && sinifAnahtar(x.ad) === sinifAnahtar(sinif); })[0];
+        if(es) sinif = es.ad;
+      }
+      out.push({ad: ad, brans: String(r[1] || '').trim(), sinif: sinif});
+    });
+    return out;
+  }
   function sroOptionsYukle(){
+    var kurul = sroKurulSatirlari();
     var siniflar = [];
     try{ siniflar = JSON.parse(localStorage.getItem('sinifListesi') || '[]'); }catch(e){}
-    siniflar.sort(function(a,b){ return (a.ad||'').localeCompare(b.ad||'', 'tr', {numeric:true}); });
+    var adlar = siniflar.map(function(s){ return s.ad; });
+    if(kurul) kurul.forEach(function(k){
+      if(k.sinif && !adlar.some(function(a){ return sinifAnahtar(a) === sinifAnahtar(k.sinif); })) adlar.push(k.sinif);
+    });
+    rapLoad('sroListesi', []).forEach(function(k){
+      if(k && k.sinif && !adlar.some(function(a){ return sinifAnahtar(a) === sinifAnahtar(k.sinif); })) adlar.push(k.sinif);
+    });
+    adlar = adlar.filter(Boolean);
+    adlar.sort(function(a,b){ return a.localeCompare(b, 'tr', {numeric:true}); });
     var sSelect = document.getElementById('sroSinifSelect');
-    sSelect.innerHTML = siniflar.map(function(s){ return '<option value="' + escapeHtml(s.ad) + '">' + escapeHtml(s.ad) + '</option>'; }).join('');
+    sSelect.innerHTML = adlar.map(function(a){ return '<option value="' + escapeHtml(a) + '">' + escapeHtml(a) + '</option>'; }).join('');
 
     var ogretmenler = [];
-    try{ ogretmenler = JSON.parse(localStorage.getItem('ogretmenListesi') || '[]'); }catch(e){}
+    if(kurul){
+      ogretmenler = kurul;
+    } else {
+      try{ ogretmenler = JSON.parse(localStorage.getItem('ogretmenListesi') || '[]'); }catch(e){}
+    }
+    ogretmenler = ogretmenler.slice();
+    rapLoad('sroListesi', []).forEach(function(k){
+      if(k && k.ogretmen && !ogretmenler.some(function(o){ return otgAnahtar(o.ad) === otgAnahtar(k.ogretmen); })) ogretmenler.push({ad: k.ogretmen, brans: k.brans || '', sinif: k.sinif || ''});
+    });
     ogretmenler.sort(function(a,b){ return (a.ad||'').localeCompare(b.ad||'', 'tr'); });
     var oSelect = document.getElementById('sroOgretmenSelect');
-    oSelect.innerHTML = '<option value="">Seçiniz...</option>' + ogretmenler.map(function(o){ 
-      return '<option value="' + escapeHtml(o.ad) + '" data-brans="' + escapeHtml(o.brans||'') + '">' + escapeHtml(o.ad) + '</option>'; 
+    oSelect.innerHTML = '<option value="">Seçiniz...</option>' + ogretmenler.map(function(o){
+      return '<option value="' + escapeHtml(o.ad) + '" data-brans="' + escapeHtml(o.brans||'') + '" data-sinif="' + escapeHtml(o.sinif||'') + '">' + escapeHtml(o.ad) + '</option>';
     }).join('');
+    SRO_KURUL_VAR = !!kurul;
+    if(!kurul && !rapLoad('sroListesi', []).length) document.getElementById('sroDurum').textContent = 'Liste boş. “Yükle” düğmesiyle Sınıf / Şube Rehber Öğretmenler Kurulu PDF\'sini yükleyin.';
   }
+  var SRO_KURUL_VAR = false;
   function sroOgretmenDegisti(){
     var oSelect = document.getElementById('sroOgretmenSelect');
-    var selectedOption = oSelect.options[oSelect.selectedIndex];
-    if(selectedOption){
-      document.getElementById('sroBrans').value = selectedOption.getAttribute('data-brans') || '';
+    var o = oSelect.options[oSelect.selectedIndex];
+    if(!o || !o.value){ document.getElementById('sroBrans').value = ''; return; }
+    document.getElementById('sroBrans').value = o.getAttribute('data-brans') || '';
+    var sn = o.getAttribute('data-sinif') || '';
+    if(sn){
+      var sSelect = document.getElementById('sroSinifSelect');
+      Array.prototype.forEach.call(sSelect.options, function(op){ if(sinifAnahtar(op.value) === sinifAnahtar(sn)) sSelect.value = op.value; });
     }
+  }
+  function sroSinifDegisti(){
+    if(!SRO_KURUL_VAR) return;
+    var sinif = document.getElementById('sroSinifSelect').value;
+    var k = (sroKurulSatirlari() || []).filter(function(x){ return x.sinif && sinifAnahtar(x.sinif) === sinifAnahtar(sinif); })[0];
+    var oSelect = document.getElementById('sroOgretmenSelect');
+    if(k){ oSelect.value = k.ad; document.getElementById('sroBrans').value = k.brans || ''; }
+  }
+  /* ---- PDF'den yükleme: "Sınıf / Şube Rehber Öğretmenler Kurulu" listesi (Adı Soyadı | Sınıfı | Branşı | Asil / Yedek) ---- */
+  async function sroPdfOku(dosya){
+    if(typeof pdfjsLib === 'undefined') throw new Error('PDF kütüphanesi yüklenemedi.');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    var buf = await dosya.arrayBuffer();
+    var pdf = await pdfjsLib.getDocument({data: new Uint8Array(buf)}).promise;
+    var siniflar = rapLoad('sinifListesi', []);
+    var sonuc = [];
+    for(var p = 1; p <= pdf.numPages; p++){
+      var sayfa = await pdf.getPage(p);
+      var tc = await sayfa.getTextContent();
+      var ogeler = [];
+      tc.items.forEach(function(it){
+        var t = (it.str || '').replace(/\s+/g, ' ').trim();
+        if(t) ogeler.push({s: t, x: it.transform[4], y: it.transform[5]});
+      });
+      ogeler.sort(function(a, b){ return (b.y - a.y) || (a.x - b.x); });
+      var satirlar = [];
+      ogeler.forEach(function(o){
+        var son = satirlar[satirlar.length - 1];
+        if(son && Math.abs(son.y - o.y) <= 3) son.o.push(o); else satirlar.push({y: o.y, o: [o]});
+      });
+      satirlar.forEach(function(st){
+        st.o.sort(function(a, b){ return a.x - b.x; });
+        var metin = st.o.map(function(h){ return h.s; }).join(' ').replace(/\s+/g, ' ').trim();
+        var m = /^(.+?)\s+(\d{1,2})\s*[-\/]\s*([A-Za-zÇĞİÖŞÜçğıöşü])\s+(.+?)\s+(Asil|Yedek)\b/i.exec(metin);
+        if(!m) return;
+        var sinif = m[2] + '/' + m[3].toLocaleUpperCase('tr');
+        var es = siniflar.filter(function(x){ return x && x.ad && sinifAnahtar(x.ad) === sinifAnahtar(sinif); })[0];
+        if(es) sinif = es.ad;
+        sonuc.push({sinif: sinif, ogretmen: m[1].trim(), brans: m[4].trim()});
+      });
+      sayfa.cleanup();
+    }
+    return sonuc;
+  }
+  async function sroPdfYukle(event){
+    var girdi = event.target;
+    var dosya = girdi.files && girdi.files[0];
+    if(!dosya) return;
+    var durum = document.getElementById('sroDurum');
+    durum.textContent = 'PDF okunuyor...';
+    try{
+      var yeni = await sroPdfOku(dosya);
+      if(!yeni.length){
+        durum.textContent = 'PDF\'de “Adı Soyadı – Sınıfı – Branşı – Asil / Yedek” satırı bulunamadı.';
+      } else {
+        sroYukle();
+        if(SRO_LISTESI.length && !confirm('Kayıtlı ' + SRO_LISTESI.length + ' sınıf rehber öğretmeni, PDF\'deki ' + yeni.length + ' kayıtla değiştirilecek. Devam edilsin mi?')){
+          durum.textContent = 'Yükleme iptal edildi.';
+        } else {
+          SRO_LISTESI = yeni;
+          localStorage.setItem('sroListesi', JSON.stringify(SRO_LISTESI));
+          sroOptionsYukle();
+          sroRender();
+          yeniKayitSinifRehberOgretmen();
+          durum.textContent = yeni.length + ' sınıf rehber öğretmeni PDF\'den yüklendi.';
+        }
+      }
+    }catch(err){
+      durum.textContent = 'PDF okunamadı: ' + (err && err.message ? err.message : err);
+    }
+    girdi.value = '';
   }
   function sroYukle(){
     try{ SRO_LISTESI = JSON.parse(localStorage.getItem('sroListesi') || '[]'); }catch(e){ SRO_LISTESI = []; }
@@ -13337,7 +13483,7 @@ tick();setInterval(tick,1000);
     document.getElementById('sroOgretmenSelect').value = '';
     document.getElementById('sroBrans').value = '';
     SRO_SECILI = null;
-    document.getElementById('sroDurum').textContent = '';
+    if(SRO_KURUL_VAR) document.getElementById('sroDurum').textContent = '';
   }
 
   /* ================= REHBER ÖĞRETMEN RAPORLARI (Sınıf Rehber / Sosyal Kulüp) ================= */
