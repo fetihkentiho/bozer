@@ -1,0 +1,18 @@
+BOZER UYGULAMASI – KURULUM
+
+Bu klasör tek paket halindedir; başka bir bilgisayara klasörü (veya bozer-uygulama.zip dosyasını) olduğu gibi kopyalayın.
+
+TELEFONA UYGULAMA OLARAK KURMAK (kenarlıksız, tam ekran)
+Tarayıcıdan yüklenebilmesi için sayfanın HTTPS bir adresten açılması gerekir (dosyaya çift tıklayarak açılırsa yüklenmez).
+1) Klasörün içindekileri GitHub Pages'e (ör. muammerbozer.github.io/bozer/) yükleyin.
+2) Telefonda Chrome ile o adresi açın → menü (⋮) → "Uygulamayı yükle" / "Ana ekrana ekle".
+3) Ana ekrandaki "Bozer" simgesinden açınca adres çubuğu ve alt çubuk olmadan tam ekran açılır.
+   iPhone: Safari → Paylaş → "Ana Ekrana Ekle".
+
+BİLGİSAYARDA
+- index.html dosyasına çift tıklayarak açabilirsiniz (uygulama gibi yüklenme özelliği olmaz).
+- Yüklenebilir olarak denemek için klasörde:  python -m http.server 8000  yazıp Chrome'da http://localhost:8000 açın;
+  adres çubuğundaki "Yükle" simgesiyle masaüstü uygulaması olarak kurulur.
+
+NOT: Veriler tarayıcının yerel belleğinde saklanır. Başka cihaza geçerken sayfadaki Yedek düğmesiyle yedek alıp yeni cihazda geri yükleyin.
+Dönüştürücü ilk kullanımda internetten kütüphane indirir; sonra çevrimdışı çalışır.
