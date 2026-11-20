@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Kitap</title>
+<style>
+  :root { --bg:#ffffff; --fg:#111111; --muted:#777777; --sheet:#ffffff; --line:#d9d9d9; --hl:#ffeb3b; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#121212; --fg:#e6e6e6; --muted:#8a8a8a; --sheet:#1e1e1e; --line:#363636; --hl:#d9b800; }
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--fg); overflow-x:hidden; max-width:100%; touch-action:pan-y; -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+  body { font-family: -apple-system, system-ui, "Segoe UI", Roboto, Arial, sans-serif; font-size:18.15px; line-height:1.3; }
+  #reader {
+    width:100%; max-width:680px; margin:0 auto; padding:16px 16px 30vh; touch-action:pan-y;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #reader p { overflow-wrap:anywhere; word-break:normal; margin:0 0 .5em; text-align:justify; text-justify:inter-word; hyphens:auto; -webkit-hyphens:auto; text-indent:3ch; white-space:pre-wrap; }
+  #baslik { font-size:.8em; color:var(--muted); margin-bottom:1em; }
+  #sonu { margin-top:3em; text-align:center; font-size:.85em; color:var(--muted); text-decoration:underline; cursor:pointer; padding:12px; }
+  #reader b { font-weight:700; }
+  #reader i { font-style:italic; }
+  #reader u { text-decoration:underline; }
+  #reader s { text-decoration:line-through; }
+  .sayfa { display:block; width:100vw; height:0; margin:.7em 0 .7em calc(50% - 50vw); border-top:1px solid var(--muted); text-indent:0; }
+  mark.hl { background:var(--hl); color:#1a1a1a; border-radius:3px; padding:0 1px; }
+  #bos {
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    text-align:center; padding:24px; color:var(--muted); cursor:pointer; line-height:1.6;
+  }
+  #dosya { display:none; }
+
+  #perde { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; z-index:10; backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px); }
+  #sheet {
+    position:fixed; left:0; right:0; bottom:0; z-index:11; display:none;
+    flex-direction:column; width:100%; max-width:560px; margin:0 auto;
+    max-height:90vh; max-height:var(--sh, 90dvh);
+    background:var(--sheet); border-radius:22px 22px 0 0;
+    padding:10px 18px calc(16px + env(safe-area-inset-bottom));
+    font-family:-apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    box-shadow:0 -10px 40px rgba(0,0,0,.28);
+    animation:yuksel .22s ease-out;
+    touch-action:manipulation;
+  }
+  @keyframes yuksel { from { transform:translateY(40px); opacity:0; } to { transform:none; opacity:1; } }
+  #sheet .tut { width:42px; height:5px; border-radius:3px; background:var(--line); margin:0 auto 14px; flex:none; }
+  #sheet .ust { display:flex; align-items:center; gap:10px; flex:none; margin-bottom:12px; }
+  #sheet .ust small { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:700; }
+  #sheet .ust b {
+    font-size:20px; font-weight:700; background:var(--hl); color:#1a1a1a;
+    padding:3px 12px; border-radius:8px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  #sheet textarea {
+    flex:1 1 auto; width:100%; min-height:150px; height:34vh; height:34dvh; max-height:100%;
+    resize:none; font-size:17px; line-height:1.5; font-family:inherit;
+    background:var(--bg); color:var(--fg); border:2px solid var(--line); border-radius:14px;
+    padding:14px; outline:none; transition:border-color .15s;
+  }
+  #sheet textarea:focus { border-color:var(--hl); }
+  #sheet .sira { display:flex; gap:10px; margin-top:12px; flex:none; }
+  #sheet button {
+    font:700 17px/1 inherit; font-family:inherit; padding:16px 12px; border-radius:14px;
+    border:none; background:var(--bg); color:var(--fg); flex:1; cursor:pointer;
+  }
+  #sheet button.kaydet { background:var(--hl); color:#1a1a1a; flex:2.2; }
+  #sheet button.sil { color:#d0392b; background:transparent; border:2px solid var(--line); }
+  #sheet button:active { transform:scale(.98); }
+</style>
+</head>
+<body>
+
+<div id="reader"></div>
+<input type="file" id="dosya" accept=".txt,.docx,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+
+<div id="perde"></div>
+<div id="sheet">
+  <div class="tut"></div>
+  <div class="ust"><small>Not</small><b id="kelime"></b></div>
+  <textarea id="not" placeholder="Bu kelime hakkında notunu yaz…"></textarea>
+  <div class="sira">
+    <button class="sil" id="sil">Sil</button>
+    <button class="kaydet" id="kaydet">Kaydet</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var KEY_BOOK = 'kitap_v1', KEY_NOTES = 'notlar_v1', KEY_POS = 'konum_v1';
+  var LONG_MS = 550, MOVE_TOL = 10;
+
+  var reader = document.getElementById('reader');
+  var fileInput = document.getElementById('dosya');
+  var sheet = document.getElementById('sheet');
+  var perde = document.getElementById('perde');
+  var kelimeEl = document.getElementById('kelime');
+  var notEl = document.getElementById('not');
+
+  var book = null;      // {title, paras:[]}
+  var notes = [];       // {p, s, e, t}
+  var current = null;   // note being edited
+  var isNew = false;
+
+  function esc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function load(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+
+  /* ---------- Metni paragraflara böl ---------- */
+  function toParas(text) {
+    text = text.replace(/\r\n?/g, '\n').replace(/^\uFEFF/, '');
+    var parts;
+    if (/\n\s*\n/.test(text)) {
+      parts = text.split(/\n\s*\n/).map(function (p) { return p.replace(/\s*\n\s*/g, ' ').trim(); });
+    } else {
+      parts = text.split('\n').map(function (p) { return p.trim(); });
+    }
+    return parts.filter(function (p) { return p.length; });
+  }
+
+  /* ---------- Çizim ---------- */
+  function wrapFmt(h, f) {
+    if (!f) return h;
+    if (f.indexOf('b') >= 0) h = '<b>' + h + '</b>';
+    if (f.indexOf('i') >= 0) h = '<i>' + h + '</i>';
+    if (f.indexOf('u') >= 0) h = '<u>' + h + '</u>';
+    if (f.indexOf('s') >= 0) h = '<s>' + h + '</s>';
+    if (f.indexOf('^') >= 0) h = '<sup>' + h + '</sup>';
+    if (f.indexOf('_') >= 0) h = '<sub>' + h + '</sub>';
+    return h;
+  }
+  function paraHTML(i) {
+    var P = book.paras[i];
+    var list = notes.filter(function (n) { return n.p === i; })
+                    .sort(function (a, b) { return a.s - b.s; });
+    var out = '', pos = 0;
+    P.r.forEach(function (run) {
+      if (run.pb) { out += '<span class="sayfa"></span>'; return; }
+      var t = run.t, a = pos, b = pos + t.length, cur = a;
+      while (cur < b) {
+        var inside = false, next = b;
+        for (var k = 0; k < list.length; k++) {
+          var n = list[k];
+          if (n.s <= cur && cur < n.e) { inside = true; next = Math.min(b, n.e); break; }
+          if (n.s > cur && n.s < next) next = n.s;
+        }
+        var h = wrapFmt(esc(t.slice(cur - a, next - a)), run.f);
+        out += inside ? '<mark class="hl">' + h + '</mark>' : h;
+        cur = next;
+      }
+      pos = b;
+    });
+    return out;
+  }
+  function renderAll() {
+    if (!book) {
+      reader.innerHTML = '<div id="bos">Kitap metnini yüklemek için buraya dokunun<br>(.txt veya .docx dosyası)</div>';
+      return;
+    }
+    var h = '<div id="baslik">' + esc(book.title) + '</div>';
+    for (var i = 0; i < book.paras.length; i++) {
+      var P = book.paras[i], st = '';
+      if (P.a === 'c') st = ' style="text-align:center;text-indent:0"';
+      else if (P.a === 'r') st = ' style="text-align:right;text-indent:0"';
+      h += '<p data-i="' + i + '"' + st + '>' + paraHTML(i) + '</p>';
+      if (P.ra) h += '<div class="sayfa"></div>';
+    }
+    h += '<div id="sonu">Kitabı sil ve yeni kitap yükle</div>';
+    reader.innerHTML = h;
+  }
+  function renderPara(i) {
+    var el = reader.querySelector('p[data-i="' + i + '"]');
+    if (el) el.innerHTML = paraHTML(i);
+  }
+
+  /* ---------- Kitabı sil ---------- */
+  function resetBook() {
+    if (!confirm('Kitap ve tüm notlar silinsin mi?')) return;
+    try { localStorage.removeItem(KEY_BOOK); localStorage.removeItem(KEY_NOTES); localStorage.removeItem(KEY_POS); } catch (e) {}
+    book = null; notes = [];
+    renderAll();
+    window.scrollTo(0, 0);
+  }
+
+  /* ---------- Dosya yükleme ---------- */
+  function decode(buf) {
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+    catch (e) {
+      try { return new TextDecoder('windows-1254').decode(buf); }
+      catch (e2) { return new TextDecoder('utf-8').decode(buf); }
+    }
+  }
+  function mkTexts(paras) {
+    return paras.map(function (P) { return P.r.map(function (x) { return x.t || ''; }).join(''); });
+  }
+  function finishBook(title, paras) {
+    book = { title: title, paras: paras, texts: mkTexts(paras) };
+    notes = [];
+    var ok = save(KEY_BOOK, { v: 2, title: title, paras: paras });
+    save(KEY_NOTES, notes);
+    save(KEY_POS, 0);
+    renderAll();
+    window.scrollTo(0, 0);
+    if (!ok) alert('Kitap tarayıcı hafızasına sığmadı. Sayfa kapanınca kitap silinebilir.');
+  }
+
+  /* ---- Word (.docx) okuma ---- */
+  function u16(d, o) { return d[o] | (d[o + 1] << 8); }
+  function u32(d, o) { return (d[o] | (d[o + 1] << 8) | (d[o + 2] << 16) | (d[o + 3] << 24)) >>> 0; }
+  function unzip(buf) {
+    var d = new Uint8Array(buf), eocd = -1;
+    for (var i = d.length - 22; i >= Math.max(0, d.length - 65557); i--) {
+      if (u32(d, i) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error('zip');
+    var n = u16(d, eocd + 10), off = u32(d, eocd + 16), files = {};
+    for (var k = 0; k < n; k++) {
+      if (u32(d, off) !== 0x02014b50) break;
+      var nl = u16(d, off + 28), el = u16(d, off + 30), cl = u16(d, off + 32);
+      var name = new TextDecoder().decode(d.subarray(off + 46, off + 46 + nl));
+      files[name] = { method: u16(d, off + 10), csize: u32(d, off + 20), lh: u32(d, off + 42) };
+      off += 46 + nl + el + cl;
+    }
+    return { d: d, files: files };
+  }
+  function readEntry(z, name) {
+    var f = z.files[name];
+    if (!f) return Promise.resolve(null);
+    var d = z.d, start = f.lh + 30 + u16(d, f.lh + 26) + u16(d, f.lh + 28);
+    var data = d.subarray(start, start + f.csize);
+    if (f.method === 0) return Promise.resolve(new TextDecoder('utf-8').decode(data));
+    var ds = new DecompressionStream('deflate-raw');
+    return new Response(new Blob([data]).stream().pipeThrough(ds)).arrayBuffer()
+      .then(function (out) { return new TextDecoder('utf-8').decode(out); });
+  }
+  function xml(str) { return str ? new DOMParser().parseFromString(str, 'application/xml') : null; }
+  function child(el, name) {
+    if (!el) return null;
+    for (var c = el.firstElementChild; c; c = c.nextElementSibling) if (c.nodeName === name) return c;
+    return null;
+  }
+  function on(el) { var v = el.getAttribute('w:val'); return !(v === '0' || v === 'false' || v === 'off' || v === 'none'); }
+  function rprops(rPr) {
+    var o = {}, x;
+    if (!rPr) return o;
+    if ((x = child(rPr, 'w:b'))) o.b = on(x);
+    if ((x = child(rPr, 'w:i'))) o.i = on(x);
+    if ((x = child(rPr, 'w:u'))) o.u = on(x);
+    if ((x = child(rPr, 'w:strike'))) o.s = on(x);
+    if ((x = child(rPr, 'w:vertAlign'))) {
+      var v = x.getAttribute('w:val');
+      o.v = v === 'superscript' ? '^' : v === 'subscript' ? '_' : '';
+    }
+    return o;
+  }
+  function merge(a, b) { for (var k in b) if (b[k] !== undefined) a[k] = b[k]; return a; }
+
+  function parseDocx(buf) {
+    var z = unzip(buf);
+    return Promise.all([readEntry(z, 'word/document.xml'), readEntry(z, 'word/styles.xml')]).then(function (r) {
+      if (!r[0]) throw new Error('no document');
+      var doc = xml(r[0]), sd = xml(r[1]);
+      var styles = {}, defP = null;
+      if (sd) {
+        var sl = sd.getElementsByTagName('w:style');
+        for (var q = 0; q < sl.length; q++) {
+          var st = sl[q], id = st.getAttribute('w:styleId');
+          var bo = child(st, 'w:basedOn'), pPr = child(st, 'w:pPr'), jc = pPr ? child(pPr, 'w:jc') : null;
+          styles[id] = { base: bo ? bo.getAttribute('w:val') : null, r: rprops(child(st, 'w:rPr')), jc: jc ? jc.getAttribute('w:val') : null };
+          if (st.getAttribute('w:type') === 'paragraph' && st.getAttribute('w:default') === '1') defP = id;
+        }
+      }
+      function styleProps(id) {
+        var chain = [], g = 0;
+        while (id && styles[id] && g++ < 20) { chain.unshift(styles[id]); id = styles[id].base; }
+        var o = { r: {}, jc: null };
+        chain.forEach(function (c) { merge(o.r, c.r); if (c.jc) o.jc = c.jc; });
+        return o;
+      }
+
+      var paras = [], ps = doc.getElementsByTagName('w:p');
+      for (var pi = 0; pi < ps.length; pi++) {
+        var p = ps[pi], pPr2 = child(p, 'w:pPr');
+        var pst = pPr2 ? child(pPr2, 'w:pStyle') : null;
+        var sp = styleProps(pst ? pst.getAttribute('w:val') : defP);
+        var jcEl = pPr2 ? child(pPr2, 'w:jc') : null;
+        var jcv = jcEl ? jcEl.getAttribute('w:val') : sp.jc;
+        var runs = [];
+
+        var addText = function (t, f) {
+          if (!t) return;
+          var last = runs[runs.length - 1];
+          if (last && !last.pb && last.f === f) last.t += t; else runs.push({ t: t, f: f });
+        };
+        var addPb = function () {
+          var last = runs[runs.length - 1];
+          if (!last || !last.pb) runs.push({ pb: 1 });
+        };
+        var doRun = function (r) {
+          var rPr = child(r, 'w:rPr'), rs = rPr ? child(rPr, 'w:rStyle') : null;
+          var f = merge({}, sp.r);
+          if (rs) merge(f, styleProps(rs.getAttribute('w:val')).r);
+          merge(f, rprops(rPr));
+          var fl = (f.b ? 'b' : '') + (f.i ? 'i' : '') + (f.u ? 'u' : '') + (f.s ? 's' : '') + (f.v || '');
+          for (var c = r.firstElementChild; c; c = c.nextElementSibling) {
+            var nm = c.nodeName;
+            if (nm === 'w:t') addText(c.textContent, fl);
+            else if (nm === 'w:tab') addText(' ', fl);
+            else if (nm === 'w:br') { if (c.getAttribute('w:type') === 'page') addPb(); else addText('\n', fl); }
+            else if (nm === 'w:cr') addText('\n', fl);
+            else if (nm === 'w:lastRenderedPageBreak') addPb();
+            else if (nm === 'w:noBreakHyphen') addText('-', fl);
+          }
+        };
+        var walk = function (node) {
+          for (var c = node.firstElementChild; c; c = c.nextElementSibling) {
+            var nm = c.nodeName;
+            if (nm === 'w:pPr' || nm === 'w:del') continue;
+            if (nm === 'w:r') doRun(c);
+            else if (c.firstElementChild) walk(c);
+          }
+        };
+        walk(p);
+
+        if (pPr2) {
+          var pbb = child(pPr2, 'w:pageBreakBefore');
+          if (pbb && on(pbb)) runs.unshift({ pb: 1 });
+          var sect = child(pPr2, 'w:sectPr');
+          if (sect) {
+            var ty = child(sect, 'w:type');
+            if (!ty || ty.getAttribute('w:val') !== 'continuous') runs.push({ pb: 1 });
+          }
+        }
+
+        var lead = false, trail = false;
+        while (runs.length && runs[0].pb) { runs.shift(); lead = true; }
+        while (runs.length && runs[runs.length - 1].pb) { runs.pop(); trail = true; }
+        // baştaki/sondaki boşlukları kırp
+        while (runs.length && !runs[0].pb) {
+          runs[0].t = runs[0].t.replace(/^\s+/, '');
+          if (runs[0].t) break; runs.shift();
+        }
+        while (runs.length && !runs[runs.length - 1].pb) {
+          var lr = runs[runs.length - 1];
+          lr.t = lr.t.replace(/\s+$/, '');
+          if (lr.t) break; runs.pop();
+        }
+        var hasText = runs.some(function (x) { return !x.pb && x.t; });
+        if (!hasText) {
+          if ((lead || trail || runs.length) && paras.length) paras[paras.length - 1].ra = 1;
+          continue;
+        }
+        if (lead && paras.length) paras[paras.length - 1].ra = 1;
+        var para = { r: runs };
+        if (jcv === 'center') para.a = 'c';
+        else if (jcv === 'right' || jcv === 'end') para.a = 'r';
+        if (trail) para.ra = 1;
+        paras.push(para);
+      }
+      return paras;
+    });
+  }
+
+  function loadFile(file) {
+    if (!file) return;
+    var title = file.name.replace(/\.[^.]+$/, ''), lname = file.name.toLowerCase();
+    if (/\.docx$/.test(lname)) {
+      file.arrayBuffer().then(parseDocx).then(function (paras) {
+        if (!paras.length) { alert('Dosyada metin bulunamadı.'); return; }
+        finishBook(title, paras);
+      }).catch(function () { alert('Word dosyası okunamadı.'); });
+      return;
+    }
+    if (/\.doc$/.test(lname)) {
+      alert('Eski .doc biçimi desteklenmiyor. Word\'de "Farklı Kaydet" ile .docx olarak kaydedip yükleyin.');
+      return;
+    }
+    var r = new FileReader();
+    r.onload = function () {
+      var paras = toParas(decode(r.result));
+      if (!paras.length) { alert('Dosyada metin bulunamadı.'); return; }
+      finishBook(title, paras.map(function (t) { return { r: [{ t: t, f: '' }] }; }));
+    };
+    r.readAsArrayBuffer(file);
+  }
+  fileInput.addEventListener('change', function () { loadFile(fileInput.files[0]); fileInput.value = ''; });
+  window.addEventListener('dragover', function (e) { e.preventDefault(); });
+  window.addEventListener('drop', function (e) {
+    e.preventDefault();
+    if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+  });
+
+  /* ---------- Kelimeyi bul ---------- */
+  function caretAt(x, y) {
+    if (document.caretPositionFromPoint) {
+      var cp = document.caretPositionFromPoint(x, y);
+      return cp ? { node: cp.offsetNode, off: cp.offset } : null;
+    }
+    if (document.caretRangeFromPoint) {
+      var r = document.caretRangeFromPoint(x, y);
+      return r ? { node: r.startContainer, off: r.startOffset } : null;
+    }
+    return null;
+  }
+  function wordAt(x, y) {
+    var c = caretAt(x, y);
+    if (!c) return null;
+    var el = c.node.nodeType === 1 ? c.node : c.node.parentElement;
+    var p = el && el.closest ? el.closest('p[data-i]') : null;
+    if (!p) return null;
+    var rg = document.createRange();
+    rg.setStart(p, 0);
+    rg.setEnd(c.node, c.off);
+    var off = rg.toString().length;
+    var i = +p.getAttribute('data-i');
+    var text = book.texts[i];
+    var isW = function (ch) { return /[\p{L}\p{N}'’\-]/u.test(ch); };
+    var s = off, e = off;
+    if (s >= text.length || !isW(text[s])) { if (s > 0 && isW(text[s - 1])) s--; else return null; e = s; }
+    while (s > 0 && isW(text[s - 1])) s--;
+    e = Math.max(e, s);
+    while (e < text.length && isW(text[e])) e++;
+    // baştaki/sondaki tire ve kesmeyi at
+    while (s < e && /['’\-]/.test(text[s])) s++;
+    while (e > s && /['’\-]/.test(text[e - 1])) e--;
+    if (e <= s) return null;
+    return { p: i, s: s, e: e };
+  }
+
+  /* ---------- Not kutusu ---------- */
+  function openSheet(n, fresh) {
+    current = n; isNew = fresh;
+    kelimeEl.textContent = book.texts[n.p].slice(n.s, n.e);
+    notEl.value = n.t || '';
+    document.getElementById('sil').style.display = fresh ? 'none' : '';
+    perde.style.display = 'block';
+    sheet.style.display = 'flex';
+    fitSheet();
+    setTimeout(function () { notEl.focus(); fitSheet(); }, 80);
+  }
+  function fitSheet() {
+    var vv = window.visualViewport;
+    if (!vv) return;
+    var kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    sheet.style.bottom = kb + 'px';
+    sheet.style.setProperty('--sh', Math.floor(vv.height * 0.94) + 'px');
+  }
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', fitSheet);
+    window.visualViewport.addEventListener('scroll', fitSheet);
+  }
+  // sayfa yakınlaştırmayı engelle
+  document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+  document.addEventListener('gesturechange', function (e) { e.preventDefault(); });
+  document.addEventListener('touchmove', function (e) { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+  var lastTap = 0;
+  document.addEventListener('touchend', function (e) {
+    var t = Date.now();
+    if (t - lastTap < 300) e.preventDefault();
+    lastTap = t;
+  }, { passive: false });
+
+  function closeSheet() {
+    sheet.style.display = 'none';
+    sheet.style.bottom = '0';
+    perde.style.display = 'none';
+    notEl.blur();
+    current = null;
+  }
+  function cancelSheet() {
+    if (current && isNew) {
+      var p = current.p;
+      notes = notes.filter(function (n) { return n !== current; });
+      renderPara(p);
+    }
+    closeSheet();
+  }
+  document.getElementById('kaydet').addEventListener('click', function () {
+    if (!current) return;
+    current.t = notEl.value.trim();
+    save(KEY_NOTES, notes);
+    closeSheet();
+  });
+  document.getElementById('sil').addEventListener('click', function () {
+    if (!current) return;
+    var p = current.p;
+    notes = notes.filter(function (n) { return n !== current; });
+    save(KEY_NOTES, notes);
+    renderPara(p);
+    closeSheet();
+  });
+  perde.addEventListener('click', cancelSheet);
+
+  /* ---------- Uzun basma ---------- */
+  var timer = null, sx = 0, sy = 0, fired = false, downTarget = null;
+
+  function startPress(x, y, target) {
+    clearTimeout(timer);
+    sx = x; sy = y; fired = false; downTarget = target;
+    timer = setTimeout(function () {
+      fired = true;
+      if (!book) return;
+      // Başlığa uzun basınca yeni kitap seç
+      if (downTarget && downTarget.id === 'baslik') { resetBook(); return; }
+      var w = wordAt(sx, sy);
+      if (!w) return;
+      if (navigator.vibrate) try { navigator.vibrate(20); } catch (e) {}
+      var existing = notes.filter(function (n) {
+        return n.p === w.p && w.s < n.e && w.e > n.s;
+      })[0];
+      if (existing) { openSheet(existing, false); return; }
+      var n = { p: w.p, s: w.s, e: w.e, t: '' };
+      notes.push(n);
+      renderPara(w.p);
+      openSheet(n, true);
+    }, LONG_MS);
+  }
+  function endPress() { clearTimeout(timer); timer = null; }
+
+  reader.addEventListener('pointerdown', function (e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (!book) return;
+    startPress(e.clientX, e.clientY, e.target);
+  });
+  reader.addEventListener('pointermove', function (e) {
+    if (timer && (Math.abs(e.clientX - sx) > MOVE_TOL || Math.abs(e.clientY - sy) > MOVE_TOL)) endPress();
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) {
+    reader.addEventListener(ev, endPress);
+  });
+  window.addEventListener('scroll', endPress, { passive: true });
+  reader.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  reader.addEventListener('selectstart', function (e) { e.preventDefault(); });
+  reader.addEventListener('click', function (e) {
+    if (e.target.id === 'sonu') { resetBook(); return; }
+    if (e.target.id === 'bos' || (e.target.closest && e.target.closest('#bos'))) fileInput.click();
+  });
+
+  /* ---------- Kaldığın yeri hatırla ---------- */
+  var st = null;
+  window.addEventListener('scroll', function () {
+    clearTimeout(st);
+    st = setTimeout(function () { if (book) save(KEY_POS, window.scrollY); }, 300);
+  }, { passive: true });
+
+  /* ---------- Başlat ---------- */
+  var saved = load(KEY_BOOK);
+  if (saved) {
+    var sp0 = null;
+    if (saved.paras) sp0 = saved.paras;
+    else if (saved.text) sp0 = saved.text.split('\n\n').map(function (t) { return { r: [{ t: t, f: '' }] }; });
+    if (sp0 && sp0.length) {
+      book = { title: saved.title || 'Kitap', paras: sp0, texts: mkTexts(sp0) };
+      notes = (load(KEY_NOTES) || []).filter(function (n) { return n.p < book.paras.length; });
+    }
+  }
+  renderAll();
+  var pos = load(KEY_POS);
+  if (book && pos) requestAnimationFrame(function () { window.scrollTo(0, pos); });
+})();
+</script>
+</body>
+</html>
